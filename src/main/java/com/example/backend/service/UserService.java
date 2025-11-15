@@ -1,34 +1,41 @@
 package com.example.backend.service;
 
-import com.example.backend.dto.UserDTO;
+import com.example.backend.dto.UserCreateRequest;
 import com.example.backend.model.User;
 import com.example.backend.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.stream.Collectors;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UserService {
+    private final UserRepository repo;
+    private final PasswordEncoder passwordEncoder;
 
-    private final UserRepository userRepository;
-    public UserService(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public UserService(UserRepository repo, PasswordEncoder passwordEncoder) {
+        this.repo = repo;
+        this.passwordEncoder = passwordEncoder;
     }
 
-    public List<UserDTO> getAllUsers() {
-        return userRepository.findAll()
-                .stream()
-                .map(user -> new UserDTO(user.getId(), user.getUsername(), user.getEmail()))
-                .collect(Collectors.toList());
+    @Transactional
+    public User createUser(UserCreateRequest req) {
+        if (repo.existsByEmail(req.getEmail())) {
+            throw new IllegalArgumentException("Email already in use");
+        }
+        if (repo.existsByUsername(req.getUsername())) {
+            throw new IllegalArgumentException("Username already in use");
+        }
+
+        User u = new User();
+        u.setUsername(req.getUsername());
+        u.setEmail(req.getEmail());
+        String hashed = passwordEncoder.encode(req.getPassword()); // HASH aqui
+        u.setPassword(hashed);
+
+        return repo.save(u);
     }
 
-    public UserDTO createUser(User user) {
-        User saved = userRepository.save(user);
-        return new UserDTO(saved.getId(), saved.getUsername(), saved.getEmail());
-    }
-
-    public User findByEmail(String email) {
-        return userRepository.findByEmail(email).orElse(null);
+    public boolean checkPassword(User user, String rawPassword) {
+        return passwordEncoder.matches(rawPassword, user.getPassword());
     }
 }

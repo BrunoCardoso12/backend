@@ -7,6 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.example.backend.model.Topic;
 
 public interface TopicRepository extends JpaRepository<Topic, Long> {
-    List<Topic> findByBookId(Long bookId); // assumes Topic has Book book
-    List<Topic> findByUserId(Long userId); // assumes Topic has User user
+    List<Topic> findByBookId(Long bookId); // retorna todos os tópicos de um livro específico
 }
