@@ -27,7 +27,7 @@ public class BookService {
                     dto.setTitle(book.getTitle());
                     dto.setAuthor(book.getAuthor());
                     dto.setCoverImageUrl(book.getCoverImageUrl());
-                    dto.setCommunityId(book.getCommunity().getId()); // ✅ correto
+                    dto.setCommunityId(book.getCommunity().getId());
                     dto.setAvailable(book.getAvailable());
                     return dto;
                 })
@@ -39,7 +39,7 @@ public class BookService {
     }
 
     public List<BookDTO> getBooksByCommunity(Long communityId) {
-        return bookRepository.findByCommunity_Id(communityId) // ✅ usa o método correto
+        return bookRepository.findByCommunity_Id(communityId)
                 .stream()
                 .map(book -> {
                     BookDTO dto = new BookDTO();
@@ -47,10 +47,27 @@ public class BookService {
                     dto.setTitle(book.getTitle());
                     dto.setAuthor(book.getAuthor());
                     dto.setCoverImageUrl(book.getCoverImageUrl());
-                    dto.setCommunityId(book.getCommunity().getId()); // ✅ acessa via o objeto
+                    dto.setCommunityId(book.getCommunity().getId());
                     dto.setAvailable(book.getAvailable());
                     return dto;
                 })
                 .collect(Collectors.toList());
     }
+    
+    public List<BookDTO> getBooksByOwner(Long ownerId) {
+    return bookRepository.findByOwner_Id(ownerId)
+            .stream()
+            .map(book -> {
+                BookDTO dto = new BookDTO();
+                dto.setId(book.getId());
+                dto.setTitle(book.getTitle());
+                dto.setAuthor(book.getAuthor());
+                dto.setCoverImageUrl(book.getCoverImageUrl());
+                dto.setCommunityId(book.getCommunity() != null ? book.getCommunity().getId() : null);
+                dto.setAvailable(book.getAvailable());
+                return dto;
+            })
+            .collect(Collectors.toList());
+}
+
 }

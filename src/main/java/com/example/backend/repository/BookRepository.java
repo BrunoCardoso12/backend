@@ -8,4 +8,6 @@ import com.example.backend.model.Book;
 
 public interface BookRepository extends JpaRepository<Book, Long> {
     List<Book> findByCommunity_Id(Long communityId);
+
+    List<Book> findByOwner_Id(Long ownerId);
 }
