@@ -1,9 +1,17 @@
 package com.example.backend.controller;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -15,7 +23,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.example.backend.dto.UserDTO;
 import com.example.backend.model.User;
@@ -28,9 +38,19 @@ public class UserController {
 
     private final UserRepository repo;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     public UserController(UserRepository repo) {
         this.repo = repo;
+    }
+
+    // Pasta local onde os arquivos serão salvos (relativa ao diretório de execução)
+    private final Path uploadBase = Paths.get("uploads/avatars");
+
+    private void ensureUploadDir() throws IOException {
+        if (!Files.exists(uploadBase)) {
+            Files.createDirectories(uploadBase);
+        }
     }
 
     @PostMapping("/register")
@@ -45,7 +65,7 @@ public class UserController {
     public List<UserDTO> getAll() {
         return repo.findAll()
                 .stream()
-                .map(user -> new UserDTO(user.getId(), user.getUsername(), user.getEmail()))
+                .map(user -> new UserDTO(user.getId(), user.getUsername(), user.getEmail(), user.getAvatarUrl()))
                 .collect(Collectors.toList());
     }
 
@@ -55,7 +75,7 @@ public class UserController {
     @GetMapping("/{id}")
     public ResponseEntity<UserDTO> getById(@PathVariable Long id) {
         return repo.findById(id)
-                .map(user -> ResponseEntity.ok(new UserDTO(user.getId(), user.getUsername(), user.getEmail())))
+                .map(user -> ResponseEntity.ok(new UserDTO(user.getId(), user.getUsername(), user.getEmail(), user.getAvatarUrl())))
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
@@ -69,9 +89,9 @@ public class UserController {
         }
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        User saved = repo.save(user);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new UserDTO(saved.getId(), saved.getUsername(), saved.getEmail()));
+    User saved = repo.save(user);
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(new UserDTO(saved.getId(), saved.getUsername(), saved.getEmail(), saved.getAvatarUrl()));
     }
 
     // ========================
@@ -85,13 +105,14 @@ public class UserController {
             User user = userOpt.get();
             user.setUsername(userDetails.getUsername());
             user.setEmail(userDetails.getEmail());
+            user.setAvatarUrl(userDetails.getAvatarUrl());
 
             if (userDetails.getPassword() != null && !userDetails.getPassword().isBlank()) {
                 user.setPassword(passwordEncoder.encode(userDetails.getPassword()));
             }
 
             User updated = repo.save(user);
-            return ResponseEntity.ok(new UserDTO(updated.getId(), updated.getUsername(), updated.getEmail()));
+            return ResponseEntity.ok(new UserDTO(updated.getId(), updated.getUsername(), updated.getEmail(), updated.getAvatarUrl()));
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
@@ -114,7 +135,52 @@ public class UserController {
                     .body("Senha incorreta");
         }
 
-        return ResponseEntity.ok(new UserDTO(user.getId(), user.getUsername(), user.getEmail()));
+        return ResponseEntity.ok(new UserDTO(user.getId(), user.getUsername(), user.getEmail(), user.getAvatarUrl()));
+    }
+
+    // ========================
+    // Upload de avatar (multipart)
+    // ========================
+    @PostMapping("/{id}/avatar")
+    public ResponseEntity<UserDTO> uploadAvatar(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        Optional<User> userOpt = repo.findById(id);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        try {
+            ensureUploadDir();
+
+            String original = file.getOriginalFilename();
+            String ext = "";
+            if (original != null && original.contains(".")) {
+                ext = original.substring(original.lastIndexOf('.'));
+            }
+            String filename = UUID.randomUUID().toString() + ext;
+            Path target = uploadBase.resolve(filename).normalize();
+
+            logger.info("Salvando avatar para usuário {} em {}", id, target.toAbsolutePath());
+
+            // grava o arquivo
+            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+
+            // atualiza usuário
+            User user = userOpt.get();
+            String publicPath = "/uploads/avatars/" + filename; // caminho público para servir
+            user.setAvatarUrl(publicPath);
+            User updated = repo.save(user);
+
+            logger.info("Imagem salva com sucesso: {} (usuario id={})", filename, id);
+
+            return ResponseEntity.ok(new UserDTO(updated.getId(), updated.getUsername(), updated.getEmail(), updated.getAvatarUrl()));
+        } catch (IOException e) {
+            logger.error("Erro ao salvar imagem para usuario {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // ========================

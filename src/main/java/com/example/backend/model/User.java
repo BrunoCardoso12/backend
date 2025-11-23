@@ -34,6 +34,9 @@ public class User {
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
     // 🔹 Relacionamento com livros favoritos
     @ManyToMany
     @JoinTable(
@@ -91,6 +94,14 @@ public class User {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 
     public List<Book> getFavoriteBooks() {
