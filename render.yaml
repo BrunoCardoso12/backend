@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: bookgram-backend
+    env: docker
+    region: oregon
+
+    branch: main
+    path: backend
+    dockerfilePath: backend/Dockerfile
+
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+
+    autoDeploy: true

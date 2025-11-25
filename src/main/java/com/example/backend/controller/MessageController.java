@@ -15,8 +15,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.backend.dto.MessageDTO;
+import com.example.backend.dto.NotificationDTO;
 import com.example.backend.model.Message;
+import com.example.backend.model.Notification;
 import com.example.backend.repository.MessageRepository;
+import com.example.backend.repository.NotificationRepository;
 
 @CrossOrigin(origins = "http://localhost:5173")
 @RestController
@@ -24,10 +27,12 @@ import com.example.backend.repository.MessageRepository;
 public class MessageController {
 
     private final MessageRepository repo;
+    private final NotificationRepository notificationRepo;
     private final SimpMessagingTemplate messagingTemplate;
 
-    public MessageController(MessageRepository repo, SimpMessagingTemplate messagingTemplate) {
+    public MessageController(MessageRepository repo, NotificationRepository notificationRepo, SimpMessagingTemplate messagingTemplate) {
         this.repo = repo;
+        this.notificationRepo = notificationRepo;
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -46,6 +51,15 @@ public class MessageController {
         String conversationId = (a < b) ? (a + "_" + b) : (b + "_" + a);
         try {
             messagingTemplate.convertAndSend("/topic/conversation." + conversationId, out);
+            // also create and persist a notification and notify the receiver directly
+            try {
+                Notification notif = new Notification(saved.getReceiverId(), "message", "Nova mensagem de " + saved.getSenderId(), saved.getContent());
+                Notification savedNotif = notificationRepo.save(notif);
+                NotificationDTO note = new NotificationDTO(savedNotif.getId(), savedNotif.getType(), savedNotif.getTitle(), savedNotif.getBody(), savedNotif.getCreatedAt(), savedNotif.isReadFlag());
+                messagingTemplate.convertAndSendToUser(String.valueOf(saved.getReceiverId()), "/queue/notifications", note);
+            } catch (Exception e) {
+                System.err.println("Failed to send notification: " + e.getMessage());
+            }
         } catch (Exception ex) {
             // log if needed (keeping controller lightweight)
             System.err.println("Failed to send STOMP message: " + ex.getMessage());
